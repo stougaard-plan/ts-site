@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transformationsscanner — 2026-03-13</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --primary: #1e3a5f;
+    --accent: #2563eb;
+    --green: #16a34a;
+    --amber: #d97706;
+    --red: #dc2626;
+    --bg: #f8fafc;
+    --card: #fff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --muted: #64748b;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); color: var(--text); background: var(--bg); }
+
+  /* Header */
+  .header {
+    background: var(--primary);
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header .meta { font-size: 13px; opacity: 0.8; }
+
+  /* Navigation */
+  .back-btn {
+    display: none;
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 8px;
+    margin-right: 12px;
+    border-radius: 4px;
+  }
+  .back-btn:hover { background: rgba(255,255,255,0.15); }
+
+  /* Stats */
+  .stats {
+    display: flex;
+    gap: 12px;
+    padding: 16px 24px;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    background: var(--card);
+    border-radius: 8px;
+    padding: 14px 18px;
+    min-width: 140px;
+    border: 1px solid var(--border);
+  }
+  .stat-card .number { font-size: 28px; font-weight: 700; }
+  .stat-card .label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Filters */
+  .filters {
+    padding: 0 24px 12px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filters input, .filters select {
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+  }
+  .filters input { width: 260px; }
+  .filter-count { font-size: 12px; color: var(--muted); }
+
+  /* Table */
+  .table-wrap {
+    padding: 0 24px 24px;
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: var(--card);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  th {
+    background: #f1f5f9;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  th:hover { background: #e2e8f0; }
+  th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+  th.sorted .sort-arrow { opacity: 1; }
+  td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  tr { cursor: pointer; }
+  tr:hover { background: #f0f7ff; }
+  .score-high { color: var(--green); font-weight: 700; }
+  .score-mid { color: var(--amber); font-weight: 600; }
+  .score-low { color: var(--muted); }
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .badge-new { background: #dcfce7; color: #166534; }
+  .badge-off { background: #fee2e2; color: #991b1b; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Detail view */
+  #detail-view { display: none; padding: 24px; }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    max-width: 1200px;
+  }
+  @media (max-width: 768px) { .detail-grid { grid-template-columns: 1fr; } }
+  .detail-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .detail-card h3 {
+    font-size: 13px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .detail-card .field { margin-bottom: 6px; font-size: 13px; }
+  .detail-card .field-label { color: var(--muted); display: inline-block; min-width: 140px; }
+  .detail-card .field-value { font-weight: 500; }
+  .detail-header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .detail-header h2 { font-size: 22px; }
+  .detail-score {
+    font-size: 32px;
+    font-weight: 800;
+    padding: 4px 14px;
+    border-radius: 8px;
+  }
+  .score-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: #e2e8f0;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  .score-bar-fill { height: 100%; border-radius: 4px; }
+  .detail-map {
+    grid-column: 1 / -1;
+    height: 300px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .external-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .ext-link {
+    font-size: 12px;
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    color: var(--accent);
+    text-decoration: none;
+    border: 1px solid var(--border);
+  }
+  .ext-link:hover { background: #e2e8f0; }
+
+  /* Footer */
+  .footer {
+    padding: 16px 24px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    border-top: 1px solid var(--border);
+    margin-top: 24px;
+  }
+
+  /* Pagination */
+  .pagination {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    padding: 12px 0;
+    align-items: center;
+  }
+  .pagination button {
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--card);
+    cursor: pointer;
+  }
+  .pagination button:hover { background: #f1f5f9; }
+  .pagination button:disabled { opacity: 0.4; cursor: default; }
+  .pagination .info { font-size: 12px; color: var(--muted); }
+
+  /* Selection */
+  .sel-toolbar {
+    padding: 8px 24px;
+    background: #fffbeb;
+    border-bottom: 1px solid #fde68a;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .sel-toolbar select, .sel-toolbar button {
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--card);
+    cursor: pointer;
+  }
+  .sel-toolbar button { font-weight: 600; }
+  .sel-toolbar .sel-count { font-weight: 600; color: var(--primary); }
+  tr.selected { background: #f0fdf4; }
+  tr.selected td:first-child { border-left: 3px solid var(--green); }
+  td .sel-check {
+    width: 16px; height: 16px; cursor: pointer;
+    accent-color: var(--green);
+  }
+
+  /* Shortlist view */
+  .sl-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 16px; }
+  .sl-tab {
+    padding: 8px 16px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    color: var(--muted);
+    background: none; border: none; border-bottom: 3px solid transparent;
+    font-family: var(--font);
+  }
+  .sl-tab:hover { color: var(--text); background: #f8fafc; }
+  .sl-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .sl-tab .tab-count {
+    display: inline-block; background: #e2e8f0; color: var(--muted);
+    font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 4px;
+  }
+  .sl-tab.active .tab-count { background: #dbeafe; color: var(--accent); }
+
+  /* Ignore */
+  tr.ignored { opacity: 0.35; }
+  tr.ignored td:first-child { border-left: 3px solid var(--red); }
+  .btn-ignore {
+    font-size: 12px; padding: 4px 10px;
+    background: #fef2f2; color: var(--red); border: 1px solid #fecaca;
+    border-radius: 4px; cursor: pointer; font-weight: 600;
+  }
+  .btn-ignore:hover { background: #fee2e2; }
+
+  /* Diskvalificeret (veto) */
+  tr.disqualified { opacity: 0.4; text-decoration: line-through; text-decoration-color: #ef4444; }
+  tr.disqualified td:first-child { border-left: 3px solid #7f1d1d; }
+  .badge-veto { background: #7f1d1d; color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 4px; font-weight: 700; letter-spacing: 0.5px; }
+  .btn-unignore {
+    font-size: 12px; padding: 4px 10px;
+    background: #f0fdf4; color: var(--green); border: 1px solid #bbf7d0;
+    border-radius: 4px; cursor: pointer; font-weight: 600;
+  }
+
+  /* View toggle */
+  .view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-left: 8px;
+  }
+  .view-toggle button {
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 5px 14px;
+    border: none;
+    background: var(--card);
+    color: var(--muted);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .view-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .view-toggle button:not(.active):hover { background: #f1f5f9; }
+
+  /* Map view */
+  #map-view { display: none; padding: 0 24px 24px; }
+  #overviewMap { height: calc(100vh - 240px); min-height: 500px; border-radius: 8px; border: 1px solid var(--border); }
+  .map-legend {
+    display: flex; gap: 16px; padding: 8px 0; font-size: 12px; color: var(--muted);
+    flex-wrap: wrap; align-items: center;
+  }
+  .map-legend .dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px;
+  }
+  .station-popup { font-family: var(--font); }
+  .station-popup h3 { font-size: 14px; margin: 0 0 8px; }
+  .station-popup .prop-list { max-height: 300px; overflow-y: auto; }
+  .station-popup .prop-item {
+    padding: 6px 0; border-bottom: 1px solid #eee; cursor: pointer; font-size: 12px;
+  }
+  .station-popup .prop-item:hover { background: #f8fafc; }
+  .station-popup .prop-score {
+    display: inline-block; font-weight: 700; min-width: 28px; text-align: center;
+    border-radius: 4px; padding: 1px 6px; font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:center;">
+    <button class="back-btn" id="backBtn" onclick="showListScanner()">← Tilbage</button>
+    <div>
+      <h1>Transformationsscanner</h1>
+      <div class="meta" id="headerMeta">2026-03-13 — Stougaard Plan ApS</div>
+    </div>
+  </div>
+</div>
+
+<!-- LIST VIEW -->
+<div id="list-view">
+  <div class="stats" id="statsCards"></div>
+  <div class="filters">
+    <input type="text" id="searchInput" placeholder="Soeg i adresse, kommune, ejer...">
+    <select id="filterKommune"><option value="">Alle kommuner</option></select>
+    <select id="filterAnvendelse"><option value="">Alle anvendelser</option></select>
+    <select id="filterScore">
+      <option value="">Alle scorer</option>
+      <option value="high">Score >= 60</option>
+      <option value="mid">Score 40-60</option>
+      <option value="low">Score < 40</option>
+    </select>
+    <select id="filterStation">
+      <option value="">Alle stationer</option>
+      <option value="400">≤ 400 m</option>
+      <option value="1000">≤ 1.000 m</option>
+      <option value="1500">≤ 1.500 m</option>
+    </select>
+    <select id="filterKP">
+      <option value="">Alle rammer</option>
+      <option value="bolig">Bolig/blandet/center</option>
+      <option value="erhverv">Erhverv</option>
+    </select>
+    <select id="filterGrund">
+      <option value="">Alle arealer</option>
+      <option value="10000">> 10.000 m²</option>
+      <option value="5000">> 5.000 m²</option>
+      <option value="2000">> 2.000 m²</option>
+    </select>
+    <select id="filterOverdragelse">
+      <option value="">Alle handelstyper</option>
+      <option value="frit">Kun frit salg</option>
+    </select>
+    <select id="filterNyhed">
+      <option value="">Alle fund</option>
+      <option value="nye">Kun nye fund</option>
+      <option value="aendrede">Kun \u00e6ndrede (score \u00b110+)</option>
+      <option value="begge">Nye + \u00e6ndrede</option>
+    </select>
+    <select id="filterPrisdata">
+      <option value="">Alle prisdata</option>
+      <option value="langtidsejer">&#x1F7E2; Langtidsejer (kun vurdering)</option>
+      <option value="handlet">&#x1F7E1; Handlet (salgspris)</option>
+      <option value="ukendt">&#x1F534; Ukendt pris</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="filterHideUoplyst"> Skjul uoplyst ejer</label>
+    <select id="filterDCF" style="font-family:var(--font);font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;">
+      <option value="">Alle (DCF)</option>
+      <option value="any">Kun med DCF</option>
+      <option value="a_pos">Scenarie A positiv (kun nybyg)</option>
+      <option value="b_pos">Scenarie B positiv (fuld transf.)</option>
+      <option value="a_yield20">Scenarie A yield ≥ 20%</option>
+      <option value="b_yield20">Scenarie B yield ≥ 20%</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="filterHideIgnored" checked> Skjul ignorerede</label>
+    <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="filterHideDiskval" checked> Skjul diskvalificerede</label>
+    <div class="view-toggle" id="viewToggle">
+      <button class="active" onclick="showTableView()" id="btnTable">Tabel</button>
+      <button onclick="showMapView()" id="btnMap">Kort</button>
+    </div>
+    <button onclick="showShortlist()" style="font-family:var(--font);font-size:13px;padding:5px 12px;border:1px solid var(--accent);border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600;margin-left:auto;">Shortlist →</button>
+    <span class="filter-count" id="filterCount"></span>
+  </div>
+  <div class="sel-toolbar" id="selToolbar">
+    <span>Vis shortlist for:</span>
+    <select id="selMonth"></select>
+    <span class="sel-count" id="selCount">0 valgt</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr id="tableHead"></tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+  <div class="pagination" id="pagination"></div>
+
+  <!-- MAP VIEW (inside list-view so filters stay visible) -->
+  <div id="map-view">
+    <div class="map-legend">
+      <span><span class="dot" style="background:#16a34a"></span> Score &ge; 60</span>
+      <span><span class="dot" style="background:#d97706"></span> Score 40-59</span>
+      <span><span class="dot" style="background:#94a3b8"></span> Score &lt; 40</span>
+      <span style="margin-left:12px;">&#x1F689; Station (klik for ejendomme)</span>
+      <span>&#x25CF; Ejendom (klik for detaljer)</span>
+    </div>
+    <div id="overviewMap"></div>
+  </div>
+</div>
+
+<!-- DETAIL VIEW -->
+<div id="detail-view"></div>
+
+<div class="footer">
+  Transformationsscanner v2.0 — Stougaard Plan ApS — 2026-03-13<br>
+  Kommuner: Koebenhavn, Frederiksberg, Gentofte, Lyngby-Taarbaek
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="d.js"></script>
+<script>
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+let DATA = (typeof _D !== 'undefined') ? _D : null;
+let filteredData = [];
+let sortCol = 'score_total';
+let sortAsc = false;
+let currentPage = 0;
+const PAGE_SIZE = 100;
+const THRESHOLD = parseInt('60');
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+function init() {
+  renderStats();
+  buildFilters();
+  buildTableHead();
+  applyFilters();
+
+  // Check hash for direct link to detail
+  if (location.hash.startsWith('#ejendom/')) {
+    const id = location.hash.slice(9);
+    const ej = DATA.ejendomme.find(e => e.bbr_id === id);
+    if (ej) showDetail(ej);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------------
+function renderStats() {
+  const s = DATA.stats;
+  document.getElementById('statsCards').innerHTML = `
+    <div class="stat-card"><div class="number">${s.total.toLocaleString('da-DK')}</div><div class="label">Ejendomme analyseret</div></div>
+    <div class="stat-card"><div class="number" style="color:var(--green)">${s.hoejt_potentiale.toLocaleString('da-DK')}</div><div class="label">Score &ge; ${s.threshold}</div></div>
+    <div class="stat-card"><div class="number" style="color:var(--accent)">${s.nye_fund}</div><div class="label">Nye fund</div></div>
+    <div class="stat-card"><div class="number" style="color:var(--red)">${s.udgaaede}</div><div class="label">Udgåede</div></div>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Filters
+// ---------------------------------------------------------------------------
+function buildFilters() {
+  const kommuner = [...new Set(DATA.ejendomme.map(e => e.kommune).filter(Boolean))].sort();
+  const sel = document.getElementById('filterKommune');
+  kommuner.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = k; sel.appendChild(o); });
+
+  const anv = [...new Set(DATA.ejendomme.map(e => e.bbr_anvendelse_tekst).filter(Boolean))].sort();
+  const sel2 = document.getElementById('filterAnvendelse');
+  anv.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; sel2.appendChild(o); });
+
+  document.getElementById('searchInput').addEventListener('input', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterKommune').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterAnvendelse').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterScore').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterStation').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterKP').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterGrund').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterOverdragelse').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterHideUoplyst').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterDCF').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterHideIgnored').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterHideDiskval').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterPrisdata').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+  document.getElementById('filterNyhed').addEventListener('change', () => { currentPage = 0; applyFilters(); });
+}
+
+function applyFilters() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const kommune = document.getElementById('filterKommune').value;
+  const anv = document.getElementById('filterAnvendelse').value;
+  const scoreFilt = document.getElementById('filterScore').value;
+  const stationFilt = document.getElementById('filterStation').value;
+  const kpFilt = document.getElementById('filterKP').value;
+  const grundFilt = document.getElementById('filterGrund').value;
+  const overdragelseFilt = document.getElementById('filterOverdragelse').value;
+  const hideUoplyst = document.getElementById('filterHideUoplyst').checked;
+  const dcfFilt = document.getElementById('filterDCF').value;
+  const hideIgnored = document.getElementById('filterHideIgnored').checked;
+  const hideDiskval = document.getElementById('filterHideDiskval').checked;
+  const prisdataFilt = document.getElementById('filterPrisdata').value;
+  const nyhedFilt = document.getElementById('filterNyhed').value;
+  const nyeIds = new Set(DATA.nye_fund_ids || []);
+  const aendrIds = new Set(DATA.aendrede_ids || []);
+
+  filteredData = DATA.ejendomme.filter(e => {
+    if (q) {
+      const haystack = [e.adresse, e.kommune, e.ejerforhold_tekst, e.bbr_anvendelse_tekst, e.ejer_navn || '', e.ois_ejernavn || '', e.ois_administrator || ''].join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    if (kommune && e.kommune !== kommune) return false;
+    if (anv && e.bbr_anvendelse_tekst !== anv) return false;
+    if (scoreFilt === 'high' && (e.score_total || 0) < THRESHOLD) return false;
+    if (scoreFilt === 'mid' && ((e.score_total || 0) < 40 || (e.score_total || 0) >= THRESHOLD)) return false;
+    if (scoreFilt === 'low' && (e.score_total || 0) >= 40) return false;
+    if (stationFilt && (e.afstand_station_m == null || e.afstand_station_m > Number(stationFilt))) return false;
+    if (kpFilt === 'bolig') {
+      const kp = (e.kommuneplanramme_anvendelse || '').toLowerCase();
+      if (!['bolig', 'blandet', 'center', 'bymidte'].some(w => kp.includes(w))) return false;
+    }
+    if (kpFilt === 'erhverv') {
+      const kp = (e.kommuneplanramme_anvendelse || '').toLowerCase();
+      if (!kp.includes('erhverv')) return false;
+    }
+    if (grundFilt && (!e.grundareal_m2 || e.grundareal_m2 < Number(grundFilt))) return false;
+    if (overdragelseFilt === 'frit' && !(e.overdragelse || '').toLowerCase().includes('frit')) return false;
+    if (hideUoplyst && (e.ejerforhold_tekst === 'Uoplyst' && !e.ois_ejernavn && !e.ejer_navn)) return false;
+    if (dcfFilt === 'any' && e.dcf_bruttofortjeneste == null) return false;
+    if (dcfFilt === 'a_pos' && !(e.dcf_a_bruttofortjeneste > 0)) return false;
+    if (dcfFilt === 'b_pos' && !(e.dcf_bruttofortjeneste > 0)) return false;
+    if (dcfFilt === 'a_yield20' && !(e.dcf_a_yield_pct >= 20)) return false;
+    if (dcfFilt === 'b_yield20' && !(e.dcf_yield_pct >= 20)) return false;
+    if (hideIgnored && isIgnored(e.bbr_id)) return false;
+    if (hideDiskval && e.diskvalificeret && e.diskvalificeret.length > 0) return false;
+    if (prisdataFilt && (e.prisdata_kategori || 'ukendt') !== prisdataFilt) return false;
+    if (nyhedFilt === 'nye' && !nyeIds.has(e.bbr_id)) return false;
+    if (nyhedFilt === 'aendrede' && !aendrIds.has(e.bbr_id)) return false;
+    if (nyhedFilt === 'begge' && !nyeIds.has(e.bbr_id) && !aendrIds.has(e.bbr_id)) return false;
+    return true;
+  });
+
+  sortData();
+  renderTable();
+  if (currentView === 'map') updateMapMarkers();
+}
+
+// ---------------------------------------------------------------------------
+// Sorting
+// ---------------------------------------------------------------------------
+const COLUMNS = [
+  { key: '_sel', label: '', sortable: false },
+  { key: '_rank', label: '#', sortable: false },
+  { key: 'adresse', label: 'Adresse', sortable: true },
+  { key: 'kommune', label: 'Kommune', sortable: true },
+  { key: 'bbr_anvendelse_tekst', label: 'Anvendelse', sortable: true },
+  { key: 'grundareal_m2', label: 'Grund m\u00b2', sortable: true, numeric: true },
+  { key: 'bygningsareal_m2', label: 'Bygning m\u00b2', sortable: true, numeric: true },
+  { key: 'byggeaar', label: 'Byggeaar', sortable: true, numeric: true },
+  { key: '_ejer', label: 'Ejer', sortable: true },
+  { key: 'naermeste_station', label: 'Station', sortable: true },
+  { key: 'afstand_station_m', label: 'Afst. m', sortable: true, numeric: true },
+  { key: 'score_total', label: 'Score', sortable: true, numeric: true },
+  { key: 'scenarie_egnethed', label: 'Scenarie', sortable: true },
+  { key: 'udnyttelsesgrad', label: 'Udnyt.%', sortable: true, numeric: true },
+  { key: 'bolig_kvm_pris', label: 'Kr/m\u00b2', sortable: true, numeric: true },
+  { key: 'estimeret_boligvaerdi', label: 'Est. boligv.', sortable: true, numeric: true },
+  { key: 'salgspris', label: 'Salgspris', sortable: true, numeric: true },
+  { key: 'salgsaar', label: 'Salgsår', sortable: true, numeric: true },
+  { key: 'overdragelse', label: 'Type', sortable: true },
+  { key: 'dcf_bruttofortjeneste', label: 'DCF fortj.', sortable: true, numeric: true },
+  { key: 'dcf_yield_pct', label: 'Yield%', sortable: true, numeric: true },
+];
+
+function buildTableHead() {
+  const tr = document.getElementById('tableHead');
+  tr.innerHTML = COLUMNS.map(c => {
+    if (!c.sortable) return `<th>${c.label}</th>`;
+    return `<th onclick="doSort('${c.key}')" class="${sortCol === c.key ? 'sorted' : ''}">${c.label} <span class="sort-arrow">${sortCol === c.key ? (sortAsc ? '\u25b2' : '\u25bc') : '\u25bc'}</span></th>`;
+  }).join('');
+}
+
+function doSort(col) {
+  if (sortCol === col) { sortAsc = !sortAsc; }
+  else { sortCol = col; sortAsc = col === 'adresse' || col === 'kommune'; }
+  buildTableHead();
+  sortData();
+  renderTable();
+}
+
+function sortData() {
+  filteredData.sort((a, b) => {
+    let va = getCellValue(a, sortCol);
+    let vb = getCellValue(b, sortCol);
+    if (va == null) va = sortAsc ? Infinity : -Infinity;
+    if (vb == null) vb = sortAsc ? Infinity : -Infinity;
+    if (typeof va === 'string') {
+      const cmp = va.localeCompare(vb, 'da');
+      return sortAsc ? cmp : -cmp;
+    }
+    return sortAsc ? va - vb : vb - va;
+  });
+}
+
+function getCellValue(e, col) {
+  if (col === '_ejer') return ejerDisplay(e);
+  return e[col];
+}
+
+// ---------------------------------------------------------------------------
+// Table rendering
+// ---------------------------------------------------------------------------
+function renderTable() {
+  const start = currentPage * PAGE_SIZE;
+  const page = filteredData.slice(start, start + PAGE_SIZE);
+  const newIds = new Set(DATA.nye_fund_ids || []);
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = page.map((e, i) => {
+    const rank = start + i + 1;
+    const score = e.score_total || 0;
+    const sc = score >= THRESHOLD ? 'score-high' : score >= 40 ? 'score-mid' : 'score-low';
+    const isNew = newIds.has(e.bbr_id) ? '<span class="badge badge-new">NY</span>' : '';
+    const isOff = ['50','60','70','80','20'].includes(e.ejerforholdskode) ? '<span class="badge badge-off">off.</span>' : '';
+    const station = e.naermeste_station || '\u2014';
+
+    const isSel = isSelected(e.bbr_id);
+    const isIgn = isIgnored(e.bbr_id);
+    const isDisk = e.diskvalificeret && e.diskvalificeret.length > 0;
+    const vetoTxt = isDisk ? e.diskvalificeret.map(v => ({offentlig_ejer:'Offentlig ejer',ejerlejlighed:'Ejerlejlighed',andelsbolig:'Andelsboligforening'}[v]||v)).join(', ') : '';
+    const scenarie = e.scenarie_egnethed ? '<span style="font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:700;background:#dbeafe;color:#1e40af;">' + e.scenarie_egnethed + '</span>' : '';
+    return `<tr class="${isSel ? 'selected' : ''} ${isIgn ? 'ignored' : ''} ${isDisk ? 'disqualified' : ''}" onclick="showDetail(DATA.ejendomme.find(x=>x.bbr_id==='${e.bbr_id}'))">
+      <td style="white-space:nowrap;"><input type="checkbox" class="sel-check" ${isSel ? 'checked' : ''} onclick="event.stopPropagation();toggleProperty('${e.bbr_id}')" title="Shortlist"> <button onclick="event.stopPropagation();toggleIgnore('${e.bbr_id}');applyFilters();" style="background:none;border:none;cursor:pointer;font-size:13px;opacity:0.4;padding:0 2px;" title="${isIgn ? 'Fjern ignorering' : 'Ignorér'}">${isIgn ? '&#x21A9;' : '&#x2715;'}</button></td>
+      <td>${rank}</td>
+      <td>${e.adresse || '\u2014'}${isNew}${scenarie}${isDisk ? '<span class="badge-veto" title="' + vetoTxt + '">VETO</span>' : ''}</td>
+      <td>${e.kommune || '\u2014'}</td>
+      <td>${e.bbr_anvendelse_tekst || '\u2014'}</td>
+      <td class="num">${fmtNum(e.grundareal_m2)}</td>
+      <td class="num">${fmtNum(e.bygningsareal_m2)}</td>
+      <td>${e.byggeaar || '\u2014'}</td>
+      <td>${ejerDisplay(e)}${isOff}</td>
+      <td>${station}</td>
+      <td class="num">${e.afstand_station_m != null ? e.afstand_station_m.toLocaleString('da-DK') : '\u2014'}</td>
+      <td class="${sc}">${score}</td>
+      <td>${e.scenarie_egnethed ? (() => { const s = e.scenarie_egnethed; const bg = s === 'A' ? '#dbeafe' : s === 'B' ? '#dcfce7' : '#fef3c7'; const fg = s === 'A' ? '#1e40af' : s === 'B' ? '#166534' : '#92400e'; return '<span style="font-size:10px;padding:2px 6px;border-radius:3px;font-weight:700;background:' + bg + ';color:' + fg + ';">' + s + '</span>'; })() : '\u2014'}</td>
+      <td class="num">${e.udnyttelsesgrad != null ? e.udnyttelsesgrad + '%' : '\u2014'}</td>
+      <td class="num">${e.bolig_kvm_pris ? e.bolig_kvm_pris.toLocaleString('da-DK') : '\u2014'}</td>
+      <td class="num">${e.estimeret_boligvaerdi ? (e.estimeret_boligvaerdi / 1000000).toFixed(1) + ' mio' : '\u2014'}</td>
+      <td class="num">${e.salgspris ? (e.salgspris / 1000000).toFixed(1) + ' mio' : (e.prisdata_kategori === 'langtidsejer' ? '<span style="color:var(--green,#2ecc71);font-size:11px" title="Langtidsejer — kun vurdering">&#x1F7E2;</span>' : e.prisdata_kategori === 'ukendt' ? '<span style="color:#e74c3c;font-size:11px" title="Ukendt pris">&#x1F534;</span>' : '\u2014')}</td>
+      <td class="num">${e.salgsaar || '\u2014'}</td>
+      <td>${e.overdragelse || '\u2014'}</td>
+      <td class="num">${e.dcf_bruttofortjeneste ? (e.dcf_bruttofortjeneste / 1000000).toFixed(1) + ' mio' : '\u2014'}</td>
+      <td class="num">${e.dcf_yield_pct != null ? e.dcf_yield_pct + '%' : '\u2014'}</td>
+    </tr>`;
+  }).join('');
+
+  // Pagination
+  const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+  document.getElementById('filterCount').textContent = `${filteredData.length} ejendomme`;
+  document.getElementById('pagination').innerHTML = totalPages > 1 ? `
+    <button onclick="currentPage=0;renderTable()" ${currentPage===0?'disabled':''}>&#8676;</button>
+    <button onclick="currentPage--;renderTable()" ${currentPage===0?'disabled':''}>&#8592; Forrige</button>
+    <span class="info">Side ${currentPage+1} af ${totalPages}</span>
+    <button onclick="currentPage++;renderTable()" ${currentPage>=totalPages-1?'disabled':''}>N&aelig;ste &#8594;</button>
+    <button onclick="currentPage=${totalPages-1};renderTable()" ${currentPage>=totalPages-1?'disabled':''}>&#8677;</button>
+  ` : '';
+}
+
+// ---------------------------------------------------------------------------
+// Detail view
+// ---------------------------------------------------------------------------
+let detailMap = null;
+
+function showDetail(e) {
+  if (!e) return;
+  location.hash = 'ejendom/' + e.bbr_id;
+
+  document.getElementById('list-view').style.display = 'none';
+  document.getElementById('detail-view').style.display = 'block';
+  document.getElementById('backBtn').style.display = 'inline-block';
+
+  const score = e.score_total || 0;
+  const sc = score >= THRESHOLD ? 'var(--green)' : score >= 40 ? 'var(--amber)' : 'var(--muted)';
+  const scBg = score >= THRESHOLD ? '#dcfce7' : score >= 40 ? '#fef3c7' : '#f1f5f9';
+
+  // Score details — vis rå score (0-100), vægt og progressbar
+  const sd = e.score_detaljer || {};
+  const WEIGHTS = { kommuneplan:0.25, ejer:0.20, nabo_bolig:0.15, stationsnaerhed:0.10, grundareal:0.05, lokalplan_alder:0.05, bygningsalder:0.05, bygningsareal:0.05 };
+  const LABELS = {
+    kommuneplan: 'Kommuneplanramme',
+    ejer: 'Ejerforhold',
+    nabo_bolig: 'Nabo-bolig',
+    stationsnaerhed: 'Stationsnærhed',
+    grundareal: 'Grundareal',
+    lokalplan_alder: 'Lokalplanalder',
+    bygningsalder: 'Bygningsalder',
+    bygningsareal: 'Bygningsareal',
+    bonus_malus: 'Bonus/malus',
+  };
+  const scoreRows = Object.entries(sd).map(([k, v]) => {
+    const label = LABELS[k] || k;
+    const w = WEIGHTS[k];
+    if (k === 'bonus_malus') {
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border);">
+        <span style="width:130px;flex-shrink:0;font-size:13px;font-weight:600;">${label}</span>
+        <span style="width:60px;text-align:right;font-weight:700;color:${v >= 0 ? 'var(--green)' : 'var(--red)'}">${v > 0 ? '+' : ''}${v}</span>
+      </div>`;
+    }
+    const rawScore = w > 0 ? Math.round(v / w) : 0;
+    const barColor = rawScore >= 70 ? 'var(--green)' : rawScore >= 40 ? 'var(--amber)' : '#94a3b8';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+      <span style="width:130px;flex-shrink:0;font-size:13px;">${label}</span>
+      <div style="flex:1;background:#e2e8f0;border-radius:4px;height:14px;overflow:hidden;position:relative;">
+        <div style="width:${rawScore}%;height:100%;background:${barColor};border-radius:4px;transition:width .3s;"></div>
+      </div>
+      <span style="width:35px;text-align:right;font-size:12px;font-weight:600;">${rawScore}</span>
+      <span style="width:30px;text-align:right;font-size:11px;color:var(--muted);">×${w ? (w*100).toFixed(0)+'%' : ''}</span>
+      <span style="width:30px;text-align:right;font-size:12px;font-weight:700;">${v > 0 ? '+' : ''}${v.toFixed ? v.toFixed(1) : v}</span>
+    </div>`;
+  }).join('');
+
+  // Flags
+  const flagLabels = {bevaringsvaerdi_tjek:'Bevaringsv\u00e6rdi-tjek',pensionskasse_ejer:'Pensionskasse-ejer \u2014 s\u00e6lger sj\u00e6ldent'};
+  const flags = (e.flag || []).map(f => `<span class="badge" style="background:#fef3c7;color:#92400e">${flagLabels[f]||f}</span>`).join(' ');
+  const vetoReasons = {offentlig_ejer:'Offentlig ejer',ejerlejlighed:'Ejerlejlighed',andelsbolig:'Andelsboligforening',fredet:'Fredet bygning (NO-GO)'};
+  const vetoBanner = e.diskvalificeret && e.diskvalificeret.length > 0
+    ? '<div style="background:#7f1d1d;color:#fff;padding:8px 16px;border-radius:6px;margin-top:8px;font-size:13px;font-weight:600;">\u26d4 DISKVALIFICERET: ' + e.diskvalificeret.map(v => vetoReasons[v]||v).join(', ') + '</div>'
+    : '';
+
+  // External links
+  const bbrLink = e.bfe_nummer ? `https://bbr.dk/pls/wwwdata/get_newois_pck.show_bbr_meddelelse_pdf?i_bfe=${e.bfe_nummer}` : '';
+  const mapLink = e.koordinat_lat ? `https://www.google.com/maps?q=${e.koordinat_lat},${e.koordinat_lon}` : '';
+  // Plandata bruger UTM32 — konverter fra WGS84
+  let planLink = '';
+  if (e.koordinat_lat) {
+    const utm = wgs84ToUtm32(e.koordinat_lat, e.koordinat_lon);
+    planLink = `https://kort.plandata.dk/spatialmap?x=${utm[0].toFixed(0)}&y=${utm[1].toFixed(0)}&zoom=8`;
+  }
+
+  document.getElementById('detail-view').innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-header">
+        <h2>${e.adresse || 'Ukendt adresse'}</h2>
+        <div class="detail-score" style="color:${sc};background:${scBg}">${score}</div>
+        ${e.prisdata_kategori === 'langtidsejer' ? '<span style="display:inline-flex;align-items:center;gap:4px;background:#ecfdf5;color:#059669;font-size:12px;font-weight:600;padding:4px 10px;border-radius:12px;border:1px solid #a7f3d0;">&#x1F7E2; Langtidsejer</span>' : e.prisdata_kategori === 'ukendt' ? '<span style="display:inline-flex;align-items:center;gap:4px;background:#fef2f2;color:#dc2626;font-size:12px;font-weight:600;padding:4px 10px;border-radius:12px;border:1px solid #fecaca;">&#x1F534; Ukendt pris</span>' : '<span style="display:inline-flex;align-items:center;gap:4px;background:#fffbeb;color:#d97706;font-size:12px;font-weight:600;padding:4px 10px;border-radius:12px;border:1px solid #fde68a;">&#x1F7E1; Handlet</span>'}
+        ${flags}
+        ${e.scenarie_egnethed ? '<span style="display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1e40af;font-size:12px;font-weight:700;padding:4px 10px;border-radius:12px;border:1px solid #93c5fd;">Scenarie ' + e.scenarie_egnethed + '</span>' : ''}
+        ${vetoBanner}
+      </div>
+
+      <!-- KPI-bar -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;grid-column:1/-1;">
+        <div style="background:#f8fafc;border-radius:8px;padding:14px 16px;border:1px solid var(--border);text-align:center;">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Score</div>
+          <div style="font-size:22px;font-weight:800;color:${sc};">${score}<span style="font-size:13px;font-weight:400;">/100</span></div>
+        </div>
+        <div style="background:#f8fafc;border-radius:8px;padding:14px 16px;border:1px solid var(--border);text-align:center;">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Bruttofortjeneste B</div>
+          <div style="font-size:22px;font-weight:800;color:${e.dcf_bruttofortjeneste != null ? (e.dcf_bruttofortjeneste >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)'};">${e.dcf_bruttofortjeneste != null ? (e.dcf_bruttofortjeneste / 1e6).toFixed(1) + ' mio' : '\u2014'}</div>
+        </div>
+        <div style="background:#f8fafc;border-radius:8px;padding:14px 16px;border:1px solid var(--border);text-align:center;">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Yield B</div>
+          <div style="font-size:22px;font-weight:800;color:${e.dcf_yield_pct != null ? (e.dcf_yield_pct >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)'};">${e.dcf_yield_pct != null ? e.dcf_yield_pct + '%' : '\u2014'}</div>
+        </div>
+        <div style="background:#f8fafc;border-radius:8px;padding:14px 16px;border:1px solid var(--border);text-align:center;">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Grundpris</div>
+          <div style="font-size:22px;font-weight:800;color:var(--text);">${e.salgspris ? (e.salgspris/1e6).toFixed(1) + ' mio' : e.vurdering ? (e.vurdering/1e6).toFixed(1) + ' mio*' : '\u2014'}</div>
+          ${e.salgspris ? '<div style="font-size:10px;color:var(--muted);">Salgspris</div>' : e.vurdering ? '<div style="font-size:10px;color:var(--muted);">*Vurdering</div>' : ''}
+        </div>
+        <div style="background:#f8fafc;border-radius:8px;padding:14px 16px;border:1px solid var(--border);text-align:center;">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Uudnyttet</div>
+          <div style="font-size:22px;font-weight:800;color:${e.uudnyttet_areal_m2 ? 'var(--green)' : 'var(--muted)'};">${e.uudnyttet_areal_m2 ? fmtNum(e.uudnyttet_areal_m2) + ' m\u00b2' : '\u2014'}</div>
+        </div>
+      </div>
+
+      <!-- Handlingsknapper (flyttet op) -->
+      <div style="display:flex;gap:10px;padding:14px 16px;background:#f8fafc;border-radius:8px;border:1px solid var(--border);flex-wrap:wrap;align-items:center;grid-column:1/-1;">
+        ${(() => {
+          const onMonth = getPropertyMonth(e.bbr_id);
+          if (onMonth) {
+            const mLabel = new Date(onMonth + '-01').toLocaleDateString('da-DK', { year:'numeric', month:'long' });
+            return '<div style="font-size:13px;font-weight:600;color:var(--green);">\u2713 P\u00e5 shortlist for ' + mLabel + '</div>' +
+              '<button onclick="removeFromShortlist(\'' + e.bbr_id + '\');showDetail(DATA.ejendomme.find(x=>x.bbr_id===\'' + e.bbr_id + '\'))" style="font-family:var(--font);font-size:12px;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:600;border:1px solid #fecaca;background:#fef2f2;color:var(--red);">Fjern fra shortlist</button>' +
+              '<select onchange="moveToMonth(\'' + e.bbr_id + '\',this.value);showDetail(DATA.ejendomme.find(x=>x.bbr_id===\'' + e.bbr_id + '\'))" style="font-family:var(--font);font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;">' +
+              '<option value="">Flyt til...</option>' + getMonthOptions(onMonth) + '</select>';
+          } else {
+            return '<span style="font-size:13px;font-weight:600;">Tilf\u00f8j til shortlist:</span>' +
+              '<select id="addMonthPicker" style="font-family:var(--font);font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;">' + getMonthOptions() + '</select>' +
+              '<button onclick="addToMonth(\'' + e.bbr_id + '\',document.getElementById(\'addMonthPicker\').value);showDetail(DATA.ejendomme.find(x=>x.bbr_id===\'' + e.bbr_id + '\'))" style="font-family:var(--font);font-size:13px;padding:6px 16px;border-radius:4px;cursor:pointer;font-weight:600;border:1px solid var(--accent);background:var(--accent);color:#fff;">+ Tilf\u00f8j</button>';
+          }
+        })()}
+        <div style="flex:1;"></div>
+        <button onclick="toggleIgnore('${e.bbr_id}');showDetail(DATA.ejendomme.find(x=>x.bbr_id==='${e.bbr_id}'))" style="font-family:var(--font);font-size:12px;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:600;border:1px solid ${isIgnored(e.bbr_id) ? 'var(--accent)' : '#fecaca'};background:${isIgnored(e.bbr_id) ? '#f0f9ff' : '#fef2f2'};color:${isIgnored(e.bbr_id) ? 'var(--accent)' : 'var(--red)'};">
+          ${isIgnored(e.bbr_id) ? 'Genaktiver' : 'Ignorer'}
+        </button>
+      </div>
+
+      ${e.koordinat_lat ? '<div class="detail-map" id="detailMap" style="grid-column:1/-1;"></div>' : ''}
+
+      <!-- \u00d8konomi & Business Case (fuld bredde) -->
+      <div class="detail-card" style="grid-column:1/-1;">
+        <h3>\u00d8konomi & Business Case</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Handel & Vurdering</div>
+            ${e.salgspris ? '<div class="field"><span class="field-label">Salgspris</span><span class="field-value" style="font-weight:700">' + (e.salgspris / 1e6).toFixed(1) + ' mio. kr.</span></div>' : ''}
+            ${e.salgsaar ? '<div class="field"><span class="field-label">Salgs\u00e5r</span><span class="field-value">' + e.salgsaar + '</span></div>' : ''}
+            ${e.salgsdato ? '<div class="field"><span class="field-label">Salgsdato</span><span class="field-value">' + e.salgsdato + '</span></div>' : ''}
+            ${e.overdragelse ? '<div class="field"><span class="field-label">Overdragelse</span><span class="field-value">' + e.overdragelse + '</span></div>' : ''}
+            ${e.vurdering ? '<div class="field"><span class="field-label">Off. vurdering</span><span class="field-value">' + (e.vurdering / 1e6).toFixed(1) + ' mio. kr.</span></div>' : ''}
+            ${e.vurdering_aar ? '<div class="field"><span class="field-label">Vurderings\u00e5r</span><span class="field-value">' + e.vurdering_aar + '</span></div>' : ''}
+            ${e.grundvaerdi ? '<div class="field"><span class="field-label">Grundv\u00e6rdi</span><span class="field-value">' + (e.grundvaerdi / 1e6).toFixed(1) + ' mio. kr.</span></div>' : ''}
+            ${!e.salgspris && !e.vurdering ? '<div style="padding:10px;background:#fef3c7;border-radius:6px;color:#92400e;font-size:12px;">Ingen salgs- eller vurderingsdata tilg\u00e6ngelig.</div>' : ''}
+
+            ${e.bolig_kvm_pris || e.marked_kvm_pris ? '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">' +
+              '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Boligmarked</div>' +
+              (e.bolig_kvm_pris ? '<div class="field"><span class="field-label">Bolig kvm-pris</span><span class="field-value">' + e.bolig_kvm_pris.toLocaleString("da-DK") + ' kr/m\u00b2</span></div>' : '') +
+              (e.marked_kvm_pris ? '<div class="field"><span class="field-label">Off. m\u00b2-pris</span><span class="field-value">' + e.marked_kvm_pris.toLocaleString("da-DK") + ' kr/m\u00b2 <span style="font-size:10px;color:var(--muted);">(Finans DK)</span></span></div>' : '') +
+              (e.estimeret_boligvaerdi ? '<div class="field"><span class="field-label">Est. boligv\u00e6rdi</span><span class="field-value" style="font-weight:600;color:var(--accent);">' + (e.estimeret_boligvaerdi / 1e6).toFixed(1) + ' mio. kr.</span></div>' : '') +
+              '<div style="margin-top:6px;font-size:11px;color:var(--muted);">Kilde: ' + (e.bolig_kvm_pris_kilde || '?') + ' (postnr ' + (e.postnr || '?') + ')</div>' +
+            '</div>' : ''}
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">DCF-scenarioer</div>
+            ${e.dcf_bruttofortjeneste != null ? '' +
+              (e.dcf_a_bruttofortjeneste != null ? '<div style="margin-bottom:14px;">' +
+                '<div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;">A \u2014 Kun nybyg (resterende byggeret)</div>' +
+                '<div class="field"><span class="field-label">Nybyg-areal</span><span class="field-value">' + fmtNum(e.dcf_a_nybyg_areal) + ' m\u00b2</span></div>' +
+                '<div class="field"><span class="field-label">Salgsv\u00e6rdi</span><span class="field-value">' + (e.dcf_a_salgsvaerdi / 1e6).toFixed(1) + ' mio.</span></div>' +
+                '<div class="field"><span class="field-label">Anl\u00e6g</span><span class="field-value" style="color:var(--red)">\u2212' + (e.dcf_a_anlaeg / 1e6).toFixed(1) + ' mio.</span></div>' +
+                '<div class="field"><span class="field-label">Grundk\u00f8b</span><span class="field-value" style="color:var(--red)">\u2212' + (e.dcf_a_grundkoeb / 1e6).toFixed(1) + ' mio.</span></div>' +
+                '<div style="margin-top:4px;padding-top:4px;border-top:2px solid var(--border);">' +
+                  '<div class="field"><span class="field-label" style="font-weight:700;">Brutto A</span><span class="field-value" style="font-weight:800;color:' + (e.dcf_a_bruttofortjeneste >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + (e.dcf_a_bruttofortjeneste / 1e6).toFixed(1) + ' mio.</span></div>' +
+                  (e.dcf_a_yield_pct != null ? '<div class="field"><span class="field-label">Yield A</span><span class="field-value" style="font-weight:700;color:' + (e.dcf_a_yield_pct >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + e.dcf_a_yield_pct + '%</span></div>' : '') +
+                '</div>' +
+              '</div>' : '') +
+
+              '<div>' +
+                '<div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;">B \u2014 Nybyg + ombygning (fuld transformation)</div>' +
+                (e.dcf_ombygnings_areal ? '<div class="field"><span class="field-label">Ombygning</span><span class="field-value">' + fmtNum(e.dcf_ombygnings_areal) + ' m\u00b2</span></div>' : '') +
+                (e.dcf_nybyg_areal ? '<div class="field"><span class="field-label">Nybyg</span><span class="field-value">' + fmtNum(e.dcf_nybyg_areal) + ' m\u00b2</span></div>' : '') +
+                '<div class="field"><span class="field-label">Samlet areal</span><span class="field-value">' + fmtNum(e.dcf_samlet_areal || e.dcf_ombygnings_areal) + ' m\u00b2</span></div>' +
+                '<div class="field"><span class="field-label">Salgsv\u00e6rdi</span><span class="field-value">' + (e.dcf_salgsvaerdi / 1e6).toFixed(1) + ' mio.</span></div>' +
+                '<div class="field"><span class="field-label">Anl\u00e6g i alt</span><span class="field-value" style="color:var(--red)">\u2212' + (e.dcf_anlaeg / 1e6).toFixed(1) + ' mio.</span></div>' +
+                '<div class="field"><span class="field-label">Grundk\u00f8b</span><span class="field-value" style="color:var(--red)">\u2212' + (e.dcf_grundkoeb / 1e6).toFixed(1) + ' mio.</span></div>' +
+                '<div style="margin-top:4px;padding-top:4px;border-top:2px solid var(--border);">' +
+                  '<div class="field"><span class="field-label" style="font-weight:700;">Brutto B</span><span class="field-value" style="font-weight:800;font-size:16px;color:' + (e.dcf_bruttofortjeneste >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + (e.dcf_bruttofortjeneste / 1e6).toFixed(1) + ' mio.</span></div>' +
+                  (e.dcf_yield_pct != null ? '<div class="field"><span class="field-label">Yield B</span><span class="field-value" style="font-weight:700;color:' + (e.dcf_yield_pct >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + e.dcf_yield_pct + '%</span></div>' : '') +
+                '</div>' +
+              '</div>'
+            : '<div style="padding:12px;background:#fef3c7;border-radius:6px;color:#92400e;font-size:13px;"><strong>Kan ikke beregnes.</strong> Mangler:' +
+              (!e.salgspris && !e.vurdering ? ' salgspris/vurdering,' : '') +
+              (!e.bolig_kvm_pris ? ' bolig kvm-pris,' : '') +
+              '</div>'}
+          </div>
+        </div>
+        <details style="margin-top:12px;font-size:12px;">
+          <summary style="cursor:pointer;color:var(--accent);font-weight:600;">Foruds\u00e6tninger</summary>
+          <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">
+            <div class="field"><span class="field-label">Ombygningspris</span><span class="field-value">12.000 kr/m\u00b2</span></div>
+            <div class="field"><span class="field-label">Nybyggeri</span><span class="field-value">22.000 kr/m\u00b2</span></div>
+            <div class="field"><span class="field-label">Udnyttelsesfaktor</span><span class="field-value">80% af rest-byggeret</span></div>
+            <div class="field"><span class="field-label">Bolig kvm-pris</span><span class="field-value">${e.bolig_kvm_pris ? e.bolig_kvm_pris.toLocaleString('da-DK') + ' kr/m\u00b2' : '\u2014'} (${e.bolig_kvm_pris_kilde || '?'})</span></div>
+            <div class="field"><span class="field-label">Eksist. areal</span><span class="field-value">${fmtNum(e.bygningsareal_m2)} m\u00b2</span></div>
+            <div class="field"><span class="field-label">Max tilladt</span><span class="field-value">${e.max_tilladt_areal_m2 ? fmtNum(e.max_tilladt_areal_m2) + ' m\u00b2' : '\u2014'}</span></div>
+            <div class="field"><span class="field-label">Grundk\u00f8bspris</span><span class="field-value">${e.salgspris ? (e.salgspris/1e6).toFixed(1)+' mio (salgspris)' : e.vurdering ? (e.vurdering/1e6).toFixed(1)+' mio (vurdering)' : '\u2014'}</span></div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Ejer -->
+      <div class="detail-card">
+        <h3>Ejerforhold</h3>
+        ${e.ois_ejernavn ? '<div class="field"><span class="field-label">Ejer (OIS)</span><span class="field-value" style="font-weight:700">' + e.ois_ejernavn + '</span></div>' : ''}
+        <div class="field"><span class="field-label">Ejerforholdskode</span><span class="field-value">${e.ejerforhold_tekst || '\u2014'} (kode ${e.ejerforholdskode || '?'})</span></div>
+        ${e.ejer_type ? '<div class="field"><span class="field-label">Klassificering</span><span class="field-value">' + (e.ejer_type === 'pensionsselskab' ? '\u2b50 Pensionsselskab' : e.ejer_type === 'ejendomsselskab' ? '\ud83c\udfe2 Ejendomsselskab' : '\ud83c\udfe2 Virksomhed') + '</span></div>' : ''}
+
+        ${e.ejer_cvr ? '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">' +
+          '<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">CVR-opslag</div>' +
+          '<div class="field"><span class="field-label">Virksomhed</span><span class="field-value" style="font-weight:600">' + (e.ejer_navn || '\u2014') + '</span></div>' +
+          '<div class="field"><span class="field-label">CVR-nr.</span><span class="field-value"><a href="https://datacvr.virk.dk/enhed/virksomhed/' + e.ejer_cvr + '" target="_blank" style="color:var(--accent)">' + e.ejer_cvr + '</a></span></div>' +
+          '<div class="field"><span class="field-label">Branche</span><span class="field-value">' + (e.ejer_branche_tekst || e.ejer_branche || '\u2014') + '</span></div>' +
+          (e.ejer_kontakt_co ? '<div class="field"><span class="field-label">c/o</span><span class="field-value">' + e.ejer_kontakt_co + '</span></div>' : '') +
+          (e.ejer_kontakt_adresse ? '<div class="field"><span class="field-label">Adresse</span><span class="field-value">' + e.ejer_kontakt_adresse + '</span></div>' : '') +
+          (e.ejer_kontakt_telefon ? '<div class="field"><span class="field-label">Telefon</span><span class="field-value"><a href="tel:' + e.ejer_kontakt_telefon + '" style="color:var(--accent)">' + e.ejer_kontakt_telefon + '</a></span></div>' : '') +
+          (e.ejer_kontakt_email ? '<div class="field"><span class="field-label">Email</span><span class="field-value"><a href="mailto:' + e.ejer_kontakt_email + '" style="color:var(--accent)">' + e.ejer_kontakt_email + '</a></span></div>' : '') +
+        '</div>' : '<div style="margin-top:8px;font-size:12px;color:var(--muted);">Ingen CVR-data fundet</div>'}
+
+        ${e.ois_administrator ? '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">' +
+          '<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Administrator</div>' +
+          '<div class="field"><span class="field-label">Navn</span><span class="field-value" style="font-weight:600">' + e.ois_administrator + '</span></div>' +
+          (e.ois_administrator_adresse ? '<div class="field"><span class="field-label">Adresse</span><span class="field-value">' + e.ois_administrator_adresse + '</span></div>' : '') +
+        '</div>' : ''}
+      </div>
+
+      <!-- Lejere -->
+      ${e.lejere_antal != null ? '<div class="detail-card">' +
+        '<h3>Lejere / Udlejningsgrad</h3>' +
+        '<div class="field"><span class="field-label">Status</span><span class="field-value" style="font-weight:700;color:' + (e.tomgang_indikator === 'mulig_tom' ? 'var(--red)' : e.tomgang_indikator === 'lav_bel\u00e6gning' ? 'var(--amber)' : 'var(--green)') + ';">' + (e.tomgang_indikator === 'mulig_tom' ? 'Mulig tomgang' : e.tomgang_indikator === 'lav_bel\u00e6gning' ? 'Lav bel\u00e6gning' : 'Udlejet') + ' (' + e.lejere_antal + ' aktive virks.)</span></div>' +
+        (e.lejere && e.lejere.length > 0 ? '<div style="margin-top:8px;font-size:12px;">' +
+          '<div style="font-weight:600;margin-bottom:4px;">Virksomheder p\u00e5 adressen:</div>' +
+          e.lejere.map(function(l) { return '<div style="padding:3px 0;border-bottom:1px solid #f1f5f9;"><span style="font-weight:500;">'+l.navn+'</span>'+(l.branche ? '<span style="color:var(--muted);margin-left:6px;">('+l.branche+')</span>' : '')+(l.cvr ? '<a href="https://datacvr.virk.dk/enhed/virksomhed/'+l.cvr+'" target="_blank" style="margin-left:6px;font-size:11px;color:var(--accent);">CVR</a>' : '')+'</div>'; }).join('') +
+        '</div>' : '<div style="margin-top:8px;font-size:12px;color:var(--muted);">Ingen aktive virksomheder registreret p\u00e5 adressen.</div>') +
+      '</div>' : ''}
+
+      <!-- Areal & Potentiale -->
+      <div class="detail-card">
+        <h3>Areal & Potentiale</h3>
+        <div class="field"><span class="field-label">Grundareal</span><span class="field-value">${fmtNum(e.grundareal_m2)} m\u00b2</span></div>
+        <div class="field"><span class="field-label">Bygningsareal</span><span class="field-value">${fmtNum(e.bygningsareal_m2)} m\u00b2</span></div>
+        <div class="field"><span class="field-label">Bebygget areal</span><span class="field-value">${fmtNum(e.bebygget_areal_m2)} m\u00b2</span></div>
+        <div class="field"><span class="field-label">Antal etager</span><span class="field-value">${e.antal_etager || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Bygge\u00e5r</span><span class="field-value">${e.byggeaar || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Anvendelse</span><span class="field-value">${e.bbr_anvendelse_tekst || '\u2014'}</span></div>
+        ${e.grundareal_m2 && e.bygningsareal_m2 ? '' +
+          '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">' +
+          '<div class="field"><span class="field-label">Nuv. bebyg.pct.</span><span class="field-value">' + (e.nuvaerende_bebpct != null ? e.nuvaerende_bebpct + '%' : '\u2014') + '</span></div>' +
+          '<div class="field"><span class="field-label">Max bebyg.pct.</span><span class="field-value">' + (e.max_bebpct != null ? e.max_bebpct + '%' : '\u2014') + '</span></div>' +
+          (e.udnyttelsesgrad != null ? '<div class="field"><span class="field-label">Udnyttelsesgrad</span><span class="field-value" style="font-weight:600;' + (e.udnyttelsesgrad < 50 ? 'color:var(--green)' : e.udnyttelsesgrad < 75 ? 'color:var(--amber)' : 'color:var(--red)') + '">' + e.udnyttelsesgrad + '%</span></div>' +
+            '<div style="margin-top:6px;background:#e2e8f0;border-radius:4px;height:16px;overflow:hidden;">' +
+              '<div style="width:' + Math.min(e.udnyttelsesgrad, 100) + '%;height:100%;background:' + (e.udnyttelsesgrad < 50 ? 'var(--green)' : e.udnyttelsesgrad < 75 ? 'var(--amber)' : 'var(--red)') + ';border-radius:4px;transition:width .3s;"></div>' +
+            '</div>' : '') +
+          (e.max_tilladt_areal_m2 ? '<div class="field" style="margin-top:8px"><span class="field-label">Max tilladt areal</span><span class="field-value">' + fmtNum(e.max_tilladt_areal_m2) + ' m\u00b2</span></div>' : '') +
+          (e.uudnyttet_areal_m2 ? '<div class="field"><span class="field-label">Uudnyttet potentiale</span><span class="field-value" style="font-weight:600;color:var(--green)">' + fmtNum(e.uudnyttet_areal_m2) + ' m\u00b2</span></div>' : '') +
+          (e.uudnyttet_areal_m2 && e.bolig_kvm_pris ? '<div class="field"><span class="field-label">V\u00e6rdi af potentiale</span><span class="field-value" style="font-weight:600;color:var(--accent)">' + (e.uudnyttet_areal_m2 * e.bolig_kvm_pris / 1e6).toFixed(1) + ' mio. kr.</span></div>' : '') +
+          '</div>'
+        : ''}
+      </div>
+
+      <!-- Plan & Regulering (merged) -->
+      <div class="detail-card">
+        <h3>Plan & Regulering</h3>
+        <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Kommuneplanramme</div>
+        <div class="field"><span class="field-label">Rammenr.</span><span class="field-value">${e.kommuneplanramme_nr || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Navn</span><span class="field-value">${e.kommuneplanramme_navn || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Anvendelse</span><span class="field-value">${e.kommuneplanramme_anvendelse || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Max bebyg.pct.</span><span class="field-value">${e.kommuneplanramme_max_bebpct != null ? e.kommuneplanramme_max_bebpct + '%' : '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Max etager</span><span class="field-value">${e.kommuneplanramme_max_etager || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Zonestatus</span><span class="field-value">${e.kommuneplanramme_zonestatus || '\u2014'}</span></div>
+        ${e.kommuneplanramme_noter ? '<div style="margin-top:8px;padding:8px 10px;background:#f8fafc;border-radius:4px;border-left:3px solid var(--accent);font-size:12px;line-height:1.5;"><strong>Noter:</strong> ' + e.kommuneplanramme_noter + '</div>' : ''}
+        ${e.kommuneplanramme_doklink ? '<div style="margin-top:6px;"><a class="ext-link" href="' + e.kommuneplanramme_doklink + '" target="_blank">\u00c5bn kommuneplanramme</a></div>' : ''}
+
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+          <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Lokalplan</div>
+          <div class="field"><span class="field-label">Nr.</span><span class="field-value">${e.lokalplan_nr || '\u2014'}</span></div>
+          <div class="field"><span class="field-label">Navn</span><span class="field-value">${e.lokalplan_navn || '\u2014'}</span></div>
+          <div class="field"><span class="field-label">Anvendelse</span><span class="field-value">${e.lokalplan_anvendelse || '\u2014'}</span></div>
+          <div class="field"><span class="field-label">Vedtaget</span><span class="field-value">${e.lokalplan_vedtaget || '\u2014'}</span></div>
+          <div class="field"><span class="field-label">Max bebyg.pct.</span><span class="field-value">${e.lokalplan_bebygpct != null ? e.lokalplan_bebygpct + '%' : '\u2014'}</span></div>
+          <div class="field"><span class="field-label">Max etager</span><span class="field-value">${e.lokalplan_max_etager || '\u2014'}</span></div>
+          ${e.lokalplan_doklink ? '<div style="margin-top:6px;"><a class="ext-link" href="' + e.lokalplan_doklink + '" target="_blank">\u00c5bn lokalplan (PDF)</a></div>' : ''}
+        </div>
+      </div>
+
+      <!-- Beliggenhed -->
+      <div class="detail-card">
+        <h3>Beliggenhed</h3>
+        <div class="field"><span class="field-label">Kommune</span><span class="field-value">${e.kommune || '\u2014'} (${e.kommunekode || ''})</span></div>
+        <div class="field"><span class="field-label">Postnr.</span><span class="field-value">${e.postnr || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">N\u00e6rmeste station</span><span class="field-value">${e.naermeste_station || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Afstand station</span><span class="field-value">${e.afstand_station_m != null ? e.afstand_station_m.toLocaleString('da-DK') + ' m' : '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Stationskategori</span><span class="field-value">${e.stationsnaerhed_kategori || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">Matrikelnr.</span><span class="field-value">${e.matrikelnr || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">BFE-nummer</span><span class="field-value">${e.bfe_nummer || '\u2014'}</span></div>
+        <div class="field"><span class="field-label">BBR-ID</span><span class="field-value">${e.bbr_id || '\u2014'}</span></div>
+      </div>
+
+      <!-- Risici & restriktioner -->
+      <div class="detail-card">
+        <h3>Risici & restriktioner</h3>
+        <div class="field"><span class="field-label">Fredning</span><span class="field-value">${e.fredning && e.fredning !== '0' && e.fredning !== 'Ikke fredet' ? '<span style="color:#dc2626;font-weight:700;">' + e.fredning + '</span>' : 'Nej'}</span></div>
+        <div class="field"><span class="field-label">Forurening</span><span class="field-value">${e.forurening_v2 ? '<span style="color:#dc2626;font-weight:700;">V2-kortlagt</span>' : e.forurening_v1 ? '<span style="color:#f59e0b;font-weight:700;">V1-kortlagt</span>' : 'Ren grund'}</span></div>
+        <div class="field"><span class="field-label">St\u00f8j</span><span class="field-value">${e.stoej_over_graense ? '<span style="color:#f59e0b;font-weight:700;">' + (e.stoej_tekst || 'Over gr\u00e6nse') + '</span>' : e.stoej_db_max != null ? e.stoej_tekst : 'Ingen st\u00f8jzone'}</span></div>
+        <div class="field"><span class="field-label">Bevaringsv\u00e6rdi</span><span class="field-value">${e.bevaringsvaerdi != null ? (e.bevaringsvaerdi <= 3 ? '<span style="color:#dc2626;font-weight:700;">' : e.bevaringsvaerdi <= 6 ? '<span style="color:#f59e0b;font-weight:700;">' : '<span>') + 'SAVE ' + e.bevaringsvaerdi + ' (' + (e.bevaringsvaerdi_kategori || '') + ')</span>' : 'Ikke registreret'}</span></div>
+      </div>
+
+      <!-- Scoring -->
+      <div class="detail-card">
+        <h3>Scoring (${score}/100)</h3>
+        ${scoreRows}
+      </div>
+
+      <!-- Links & Metadata (fuld bredde) -->
+      <div class="detail-card" style="grid-column: 1 / -1;">
+        <h3>Links & Metadata</h3>
+        <div class="external-links">
+          ${e.bfe_nummer ? '<a class="ext-link" href="https://nyt.ois.dk/search/' + e.bfe_nummer + '" target="_blank">OIS</a>' : ''}
+          ${bbrLink ? '<a class="ext-link" href="' + bbrLink + '" target="_blank">BBR-meddelelse</a>' : ''}
+          ${mapLink ? '<a class="ext-link" href="' + mapLink + '" target="_blank">Google Maps</a>' : ''}
+          ${planLink ? '<a class="ext-link" href="' + planLink + '" target="_blank">Plandata.dk (kort)</a>' : ''}
+          ${e.bfe_nummer ? '<a class="ext-link" href="https://www.tinglysning.dk/tinglysning/forespoerg/ejendom/bfe/' + e.bfe_nummer + '" target="_blank">Tinglysning</a>' : ''}
+          ${e.ejer_cvr ? '<a class="ext-link" href="https://datacvr.virk.dk/enhed/virksomhed/' + e.ejer_cvr + '" target="_blank">CVR (' + e.ejer_cvr + ')</a>' : ''}
+          ${e.lokalplan_doklink ? '<a class="ext-link" href="' + e.lokalplan_doklink + '" target="_blank">Lokalplan ' + (e.lokalplan_nr || '') + '</a>' : ''}
+          ${e.kommuneplanramme_doklink ? '<a class="ext-link" href="' + e.kommuneplanramme_doklink + '" target="_blank">Kommuneplanramme</a>' : ''}
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+          F\u00f8rste gang fundet: ${e.foerste_gang_fundet || '\u2014'} &middot; Sidst set: ${e.sidst_set || '\u2014'}
+          ${e.sidst_aendret ? ' &middot; <strong>Sidst \u00e6ndret: ' + e.sidst_aendret + '</strong>' : ''}
+        </div>
+        ${e.aendringslog && e.aendringslog.length > 0 ? '<div style="margin-top:8px;"><details style="font-size:12px;"><summary style="cursor:pointer;color:var(--accent);font-weight:600;">\u00c6ndringslog (' + e.aendringslog.length + ')</summary><div style="margin-top:4px;max-height:150px;overflow-y:auto;">' +
+          e.aendringslog.slice().reverse().map(function(l) { return '<div style="padding:3px 0;border-bottom:1px solid #f1f5f9;color:var(--muted);"><span style="font-weight:600;">' + l.dato + '</span>: ' + l.tekst + '</div>'; }).join('') +
+        '</div></details></div>' : ''}
+      </div>
+
+    </div>
+
+  `;
+
+  // Render map
+  if (e.koordinat_lat) {
+    setTimeout(() => {
+      if (detailMap) detailMap.remove();
+      detailMap = L.map('detailMap').setView([e.koordinat_lat, e.koordinat_lon], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(detailMap);
+      L.marker([e.koordinat_lat, e.koordinat_lon]).addTo(detailMap)
+        .bindPopup(`<b>${e.adresse || 'Bygning'}</b><br>Score: ${score}`);
+    }, 100);
+  }
+}
+
+function showList() {
+  location.hash = '';
+  document.getElementById('list-view').style.display = 'block';
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('backBtn').style.display = 'none';
+  if (detailMap) { detailMap.remove(); detailMap = null; }
+  // Restore correct sub-view (table or map)
+  if (currentView === 'map') {
+    document.querySelector('.table-wrap').style.display = 'none';
+    document.getElementById('pagination').style.display = 'none';
+    document.getElementById('map-view').style.display = 'block';
+    if (overviewMap) setTimeout(() => overviewMap.invalidateSize(), 100);
+  }
+}
+
+// Handle browser back/forward
+window.addEventListener('hashchange', () => {
+  if (!location.hash || location.hash === '#') {
+    showListScanner();
+  } else if (location.hash.startsWith('#ejendom/') && DATA) {
+    const id = location.hash.slice(9);
+    const ej = DATA.ejendomme.find(e => e.bbr_id === id);
+    if (ej) showDetail(ej);
+  }
+});
+
+function showListScanner() {
+  location.hash = '';
+  document.getElementById('list-view').style.display = 'block';
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('backBtn').style.display = 'none';
+  const sl = document.getElementById('shortlist-view');
+  if (sl) sl.style.display = 'none';
+  if (detailMap) { detailMap.remove(); detailMap = null; }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function fmtNum(v) {
+  if (v == null) return '\u2014';
+  return Math.round(v).toLocaleString('da-DK');
+}
+
+// WGS84 (lat,lon) → UTM32N (easting, northing) — simpel konvertering
+function wgs84ToUtm32(lat, lon) {
+  const a = 6378137, f = 1/298.257223563;
+  const k0 = 0.9996, lon0 = 9 * Math.PI / 180, e = Math.sqrt(2*f - f*f);
+  const latR = lat * Math.PI/180, lonR = lon * Math.PI/180;
+  const N = a / Math.sqrt(1 - e*e * Math.sin(latR)*Math.sin(latR));
+  const T = Math.tan(latR)*Math.tan(latR);
+  const C = (e*e/(1-e*e)) * Math.cos(latR)*Math.cos(latR);
+  const A = Math.cos(latR) * (lonR - lon0);
+  const e2 = e*e, e4 = e2*e2, e6 = e4*e2;
+  const M = a*((1 - e2/4 - 3*e4/64 - 5*e6/256)*latR
+    - (3*e2/8 + 3*e4/32 + 45*e6/1024)*Math.sin(2*latR)
+    + (15*e4/256 + 45*e6/1024)*Math.sin(4*latR)
+    - (35*e6/3072)*Math.sin(6*latR));
+  const x = k0*(N*(A + (1-T+C)*A*A*A/6 + (5-18*T+T*T)*A*A*A*A*A/120)) + 500000;
+  const y = k0*(M + N*Math.tan(latR)*(A*A/2 + (5-T+9*C+4*C*C)*A*A*A*A/24));
+  return [x, y];
+}
+
+function ejerDisplay(e) {
+  if (e.ois_ejernavn) return e.ois_ejernavn;
+  const kode = e.ejerforholdskode || '';
+  if (kode === '30' && e.ejer_navn) return e.ejer_navn;
+  if (kode === '10') return 'Privat person';
+  if (kode === '20') return 'Almen boligorg.';
+  if (kode === '50' || kode === '60') return 'Kommune';
+  if (kode === '70') return 'Region';
+  if (kode === '80') return 'Staten';
+  if (kode === '40' || kode === '41') return e.ejerforhold_tekst || 'Forening/andel';
+  return e.ejerforhold_tekst || 'Ukendt';
+}
+
+// ---------------------------------------------------------------------------
+// Selection management — month-based shortlist
+// ---------------------------------------------------------------------------
+const API_TOKEN = 'api-Yj3kR8mP5nQ2wL9x';
+let selections = { selections: {} };
+let currentMonth = '';
+
+function buildMonthList() {
+  const months = [];
+  const now = new Date();
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    months.push({ val: d.toISOString().slice(0, 7), label: d.toLocaleDateString('da-DK', { year:'numeric', month:'long' }) });
+  }
+  return months;
+}
+
+function initSelections() {
+  const sel = document.getElementById('selMonth');
+  const months = buildMonthList();
+  months.forEach(m => { const o = document.createElement('option'); o.value = m.val; o.textContent = m.label; sel.appendChild(o); });
+  currentMonth = sel.value;
+  sel.addEventListener('change', () => { currentMonth = sel.value; updateSelUI(); renderTable(); });
+  loadSelections();
+}
+
+async function loadSelections() {
+  try {
+    const resp = await fetch('../api/selections.php', {
+      headers: { 'Authorization': 'Bearer ' + API_TOKEN }
+    });
+    if (resp.ok) selections = await resp.json();
+  } catch (e) { console.warn('Kan ikke hente selections:', e); }
+  updateSelUI();
+}
+
+let saveTimeout = null;
+async function saveSelections() {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    try {
+      await fetch('../api/selections.php', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + API_TOKEN, 'Content-Type': 'application/json' },
+        body: JSON.stringify(selections)
+      });
+    } catch (e) { console.warn('Fejl ved gem:', e); }
+  }, 300);
+}
+
+// Find which month a property is on (any month)
+function getPropertyMonth(bbrId) {
+  for (const [month, entry] of Object.entries(selections.selections || {})) {
+    if (entry.properties && entry.properties.includes(bbrId)) return month;
+  }
+  return null;
+}
+
+function isSelected(bbrId) {
+  return getPropertyMonth(bbrId) !== null;
+}
+
+// For table checkbox — toggle on/off current month
+function toggleProperty(bbrId) {
+  const existingMonth = getPropertyMonth(bbrId);
+  if (existingMonth) {
+    // Remove from wherever it is
+    const props = selections.selections[existingMonth].properties;
+    props.splice(props.indexOf(bbrId), 1);
+  } else {
+    // Add to current month
+    if (!selections.selections[currentMonth]) {
+      selections.selections[currentMonth] = { released: false, properties: [] };
+    }
+    selections.selections[currentMonth].properties.push(bbrId);
+  }
+  saveSelections();
+  updateSelUI();
+  renderTable();
+}
+
+// Add to a specific month
+function addToMonth(bbrId, month) {
+  if (!month) return;
+  removeFromShortlist(bbrId); // Remove from any existing month first
+  if (!selections.selections[month]) {
+    selections.selections[month] = { released: false, properties: [] };
+  }
+  if (!selections.selections[month].properties.includes(bbrId)) {
+    selections.selections[month].properties.push(bbrId);
+  }
+  saveSelections();
+  updateSelUI();
+  renderTable();
+}
+
+// Move property to different month
+function moveToMonth(bbrId, newMonth) {
+  if (!newMonth) return;
+  removeFromShortlist(bbrId);
+  addToMonth(bbrId, newMonth);
+}
+
+// Remove from all months
+function removeFromShortlist(bbrId) {
+  for (const entry of Object.values(selections.selections || {})) {
+    if (entry.properties) {
+      const idx = entry.properties.indexOf(bbrId);
+      if (idx >= 0) entry.properties.splice(idx, 1);
+    }
+  }
+  saveSelections();
+  updateSelUI();
+  renderTable();
+}
+
+// Generate month <option> list (excluding current month of property)
+function getMonthOptions(excludeMonth) {
+  return buildMonthList().filter(m => m.val !== excludeMonth).map(m =>
+    '<option value="' + m.val + '">' + m.label + '</option>'
+  ).join('');
+}
+
+function updateSelUI() {
+  // Count total across all months
+  let total = 0;
+  for (const entry of Object.values(selections.selections || {})) {
+    total += (entry.properties || []).length;
+  }
+  const mCount = selections.selections[currentMonth] ? (selections.selections[currentMonth].properties || []).length : 0;
+  document.getElementById('selCount').textContent = mCount + ' denne maaned / ' + total + ' total';
+}
+
+
+// ---------------------------------------------------------------------------
+// Ignore management
+// ---------------------------------------------------------------------------
+function isIgnored(bbrId) {
+  return selections.ignored && selections.ignored.includes(bbrId);
+}
+
+function toggleIgnore(bbrId) {
+  if (!selections.ignored) selections.ignored = [];
+  const idx = selections.ignored.indexOf(bbrId);
+  if (idx >= 0) selections.ignored.splice(idx, 1);
+  else selections.ignored.push(bbrId);
+  saveSelections();
+  applyFilters();
+}
+
+// ---------------------------------------------------------------------------
+// Shortlist view — month tabs
+// ---------------------------------------------------------------------------
+let activeSlTab = '';
+
+function showShortlist() {
+  // Collect all months that have properties
+  const monthsWithData = Object.entries(selections.selections || {})
+    .filter(([m, e]) => e.properties && e.properties.length > 0)
+    .map(([m]) => m).sort();
+
+  if (monthsWithData.length === 0) { alert('Ingen ejendomme på shortlist.'); return; }
+
+  document.getElementById('list-view').style.display = 'none';
+  document.getElementById('detail-view').style.display = 'none';
+  document.getElementById('backBtn').style.display = 'inline-block';
+
+  let shortlistDiv = document.getElementById('shortlist-view');
+  if (!shortlistDiv) {
+    shortlistDiv = document.createElement('div');
+    shortlistDiv.id = 'shortlist-view';
+    document.body.insertBefore(shortlistDiv, document.querySelector('.footer'));
+  }
+  shortlistDiv.style.display = 'block';
+
+  // Default to first month with data, or keep active if still valid
+  if (!activeSlTab || !monthsWithData.includes(activeSlTab)) activeSlTab = monthsWithData[0];
+
+  renderShortlistContent(shortlistDiv, monthsWithData);
+}
+
+function renderShortlistContent(container, monthsWithData) {
+  const allMonths = buildMonthList();
+
+  // Tabs
+  const tabs = monthsWithData.map(m => {
+    const count = (selections.selections[m].properties || []).length;
+    const label = new Date(m + '-15').toLocaleDateString('da-DK', { month:'short', year:'numeric' });
+    return '<button class="sl-tab ' + (m === activeSlTab ? 'active' : '') + '" onclick="activeSlTab=\'' + m + '\';showShortlist();">' + label + '<span class="tab-count">' + count + '</span></button>';
+  }).join('');
+
+  // Items for active tab
+  const ids = selections.selections[activeSlTab] ? selections.selections[activeSlTab].properties || [] : [];
+  const items = ids.map(id => DATA.ejendomme.find(e => e.bbr_id === id)).filter(Boolean);
+  const monthLabel = new Date(activeSlTab + '-15').toLocaleDateString('da-DK', { year:'numeric', month:'long' });
+
+  const promptText = generateClaudePrompt(items, monthLabel);
+
+  const itemsHtml = items.map(e => {
+    const moveOpts = allMonths.filter(m => m.val !== activeSlTab).map(m => '<option value="' + m.val + '">' + m.label + '</option>').join('');
+    return '<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px;border-left:4px solid var(--accent);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">' +
+        '<div style="cursor:pointer;" onclick="showDetail(DATA.ejendomme.find(x=>x.bbr_id===\'' + e.bbr_id + '\'))">' +
+          '<div style="font-weight:700;font-size:15px;">' + (e.adresse || '\u2014') + '</div>' +
+          '<div style="font-size:13px;color:var(--muted);">' + (e.kommune || '') + ' \u2014 ' + (e.bbr_anvendelse_tekst || '') + ' \u2014 Score: ' + (e.score_total || 0) + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;align-items:center;">' +
+          '<select onchange="if(this.value){moveToMonth(\'' + e.bbr_id + '\',this.value);showShortlist();}" style="font-family:var(--font);font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;"><option value="">Flyt til...</option>' + moveOpts + '</select>' +
+          '<button onclick="removeFromShortlist(\'' + e.bbr_id + '\');showShortlist();" style="font-size:11px;padding:3px 8px;background:#fef2f2;color:var(--red);border:1px solid #fecaca;border-radius:4px;cursor:pointer;font-weight:600;">Fjern</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;font-size:12px;">' +
+        '<div><strong>Ejer:</strong> ' + (e.ois_ejernavn || e.ejer_navn || '\u2014') + '</div>' +
+        '<div><strong>Grund:</strong> ' + fmtNum(e.grundareal_m2) + ' m\u00b2</div>' +
+        '<div><strong>Bygning:</strong> ' + fmtNum(e.bygningsareal_m2) + ' m\u00b2</div>' +
+        '<div><strong>Bygge\u00e5r:</strong> ' + (e.byggeaar || '\u2014') + '</div>' +
+        '<div><strong>Station:</strong> ' + (e.naermeste_station || '\u2014') + ' (' + (e.afstand_station_m != null ? e.afstand_station_m + ' m' : '\u2014') + ')</div>' +
+        '<div><strong>Salgspris:</strong> ' + (e.salgspris ? (e.salgspris/1e6).toFixed(1) + ' mio' : '\u2014') + '</div>' +
+        '<div><strong>DCF brutto:</strong> ' + (e.dcf_bruttofortjeneste ? (e.dcf_bruttofortjeneste/1e6).toFixed(1) + ' mio' : '\u2014') + '</div>' +
+        '<div><strong>Yield:</strong> ' + (e.dcf_yield_pct != null ? e.dcf_yield_pct + '%' : '\u2014') + '</div>' +
+        '<div><strong>KP-ramme:</strong> ' + (e.kommuneplanramme_anvendelse || '\u2014') + '</div>' +
+        '<div><strong>Overdragelse:</strong> ' + (e.overdragelse || '\u2014') + '</div>' +
+        (e.tomgang_indikator ? '<div><strong>Tomgang:</strong> ' + (e.tomgang_indikator === 'mulig_tom' ? '\u26a0 Mulig tom' : e.tomgang_indikator === 'lav_belægning' ? 'Lav' : 'Udlejet') + '</div>' : '') +
+        (e.ejer_kontakt_telefon ? '<div><strong>Tlf:</strong> ' + e.ejer_kontakt_telefon + '</div>' : '') +
+        (e.ejer_kontakt_email ? '<div><strong>Email:</strong> ' + e.ejer_kontakt_email + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  container.innerHTML = '<div style="padding:24px;max-width:1400px;margin:0 auto;">' +
+    '<h2 style="margin-bottom:16px;">Shortlist</h2>' +
+    '<div class="sl-tabs">' + tabs + '</div>' +
+    '<div style="margin-bottom:8px;font-size:13px;color:var(--muted);">' + monthLabel + ' \u2014 ' + items.length + ' ejendomme</div>' +
+    '<div style="display:grid;gap:12px;margin-bottom:32px;">' + itemsHtml + '</div>' +
+    '<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:20px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+        '<div><h3 style="margin:0;">Claude Deep-Dive Prompt</h3><p style="font-size:12px;color:var(--muted);margin:4px 0 0;">Kopier og brug i Claude til dybdegaaende analyse.</p></div>' +
+        '<button onclick="navigator.clipboard.writeText(document.getElementById(\'claudePrompt\').value);this.textContent=\'Kopieret!\';setTimeout(()=>this.textContent=\'Kopier prompt\',2000);" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;font-family:var(--font);">Kopier prompt</button>' +
+      '</div>' +
+      '<textarea id="claudePrompt" readonly style="width:100%;height:300px;font-family:monospace;font-size:11px;padding:12px;border:1px solid var(--border);border-radius:6px;background:#f8fafc;resize:vertical;">' + promptText.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>' +
+    '</div>' +
+  '</div>';
+}
+
+function generateClaudePrompt(items, monthLabel) {
+  const siteUrl = window.location.origin + window.location.pathname;
+  const list = items.map((e, i) => {
+    return `${i+1}. ${e.adresse || 'Ukendt adresse'}, ${e.kommune || ''}
+   - BBR-ID: ${e.bbr_id}
+   - Ejer: ${e.ois_ejernavn || e.ejer_navn || 'Ukendt'}${e.ejer_cvr ? ' (CVR: ' + e.ejer_cvr + ')' : ''}
+   - Anvendelse: ${e.bbr_anvendelse_tekst || '?'}, bygge\u00e5r ${e.byggeaar || '?'}
+   - Areal: bygning ${fmtNum(e.bygningsareal_m2)} m\u00b2, grund ${fmtNum(e.grundareal_m2)} m\u00b2
+   - Udnyttelse: ${e.udnyttelsesgrad != null ? e.udnyttelsesgrad + '% (max ' + (e.max_bebpct || '?') + '%)' : 'ukendt'}
+   - Station: ${e.naermeste_station || '?'} (${e.afstand_station_m != null ? e.afstand_station_m + ' m' : '?'})
+   - Salgspris: ${e.salgspris ? (e.salgspris/1e6).toFixed(1) + ' mio DKK (' + (e.salgsaar || '?') + ')' : 'Ukendt'}
+   - Vurdering: ${e.vurdering ? (e.vurdering/1e6).toFixed(1) + ' mio DKK' : 'Ukendt'}
+   - DCF bruttofortjeneste: ${e.dcf_bruttofortjeneste ? (e.dcf_bruttofortjeneste/1e6).toFixed(1) + ' mio DKK' : 'Ikke beregnet'}
+   - Yield: ${e.dcf_yield_pct != null ? e.dcf_yield_pct + '%' : 'Ikke beregnet'}
+   - KP-ramme: ${e.kommuneplanramme_anvendelse || 'Ukendt'}
+   - Lokalplan: ${e.lokalplan_nr ? e.lokalplan_nr + ' - ' + (e.lokalplan_navn || '') : 'Ingen'}${e.diskvalificeret && e.diskvalificeret.length > 0 ? '\n   - VETO: ' + e.diskvalificeret.join(', ') : ''}
+   - Link: ${siteUrl}#ejendom/${e.bbr_id}`;
+  }).join('\n\n');
+
+  return `Du er byudviklingsanalytiker for Stougaard Plan ApS. Vi arbejder for Gefion Group A/S med at identificere erhvervsejendomme med transformationspotentiale (erhverv \u2192 bolig).
+
+Herunder er ${items.length} ejendomme fra vores Transformationsscanner, shortlistet til ${monthLabel}.
+
+VIGTIGT: Udf\u00f8r en GRUNDIG research af hver ejendom. Brug tid p\u00e5 at s\u00f8ge, l\u00e6se og krydsreferere kilder. Det er bedre med f\u00e6rre ejendomme og dyb research end mange ejendomme og overfladisk gennemgang.
+
+== SCORING-KONTEKST ==
+Scanneren scorer 0-100 p\u00e5 f\u00f8lgende v\u00e6gtede parametre:
+- Kommuneplan (25%): Bolig/blandet/center = h\u00f8j, erhverv = middel
+- Ejerforhold (20%): A/S = 80, privatperson = 50, forening = 30
+- Nabo-bolig (15%): N\u00e6rhed til eksisterende boligomr\u00e5de (500m radius). \u22653 bolig-rammer = 100, 2 = 80, 1 = 60, ingen = 10
+- Stationsn\u00e6rhed (10%): <400m = 100, <1000m = 70, <1500m = 40
+- Grundareal (5%): St\u00f8rre = bedre (>10.000m\u00b2 = 100)
+- Lokalplan-alder (5%): \u00c6ldre = bedre (>25 \u00e5r = 100)
+- Bygningsalder/-areal (5%+5%): \u00c6ldre+st\u00f8rre = bedre
+
+Bonus/malus: byomdannelse +10, pensionskasse +10, ejendomsselskab +5, langtidsejer +5, DCF yield \u226520% +5, nybygget -20, offentlig ejer -30, detail A-lokation -25, ejerlejlighed -20, ukendt pris -3
+
+Scenarie-klassificering baseret p\u00e5 udnyttelsesgrad:
+- Scenarie A (omdannelse): \u226585% udnyttet \u2014 facaderenovering + indre ombygning
+- Scenarie B (nybyg/tilbyg): \u226440% udnyttet \u2014 nyt byggeri p\u00e5 ledig grund
+- Scenarie A+B: 40-85% \u2014 begge muligheder
+
+VETO-kriterier (diskvalificeret): Offentlig ejer (stat/kommune/almen), ejerlejlighed, andelsboligforening.
+Diskvalificerede ejendomme er skjult som standard men kan vises med filter.
+
+Scoren er en SCREENING \u2014 din research skal afg\u00f8re om potentialet er reelt.
+
+== EJENDOMME ==
+
+${list}
+
+== ANALYSEOPGAVER ==
+
+For HVER ejendom — g\u00e5 i dybden:
+
+1. KOMMUNESCAN (brug First Agenda API til at s\u00f8ge i kommunalbestyrelsens dagsordener)
+   - S\u00f8g efter adressen, matriklen, vejnavnet og omr\u00e5det i kommunens dagsordener/referater
+   - Tjek kommunens planportal for igangv\u00e6rende planl\u00e6gning, h\u00f8ringer eller forslag
+   - Unders\u00f8g om der er vedtaget eller planlagt kommuneplantill\u00e6g/lokalplan for omr\u00e5det
+   - L\u00e6s relevante dagsordenspunkter FULDT UD \u2014 ikke bare overskrifter
+
+2. MEDIESCAN (s\u00f8g bredt)
+   - S\u00f8g i danske medier: Altinget, Politiken, Berlingske, lokale medier, Estate Media, Ejendomswatch
+   - S\u00f8g efter ejeren (firmanavn + CVR) — andre projekter, \u00f8konomisk situation, strategiske udmeldinger
+   - S\u00f8g efter byggetilladelser, h\u00f8ringssvar, naboprotester
+   - L\u00e6s de vigtigste artikler grundigt og refer\u00e9r konkret
+
+3. EJERVURDERING
+   - Unders\u00f8g ejerens \u00e5rsregnskab og \u00f8konomiske situation (cvr.dk, proff.dk)
+   - Vurder s\u00e6lgervilje: Er ejeren under pres? Konsoliderer? Generationsskifte?
+   - Identificer lejere, servitutter, tinglyste byrder der binder ejendommen
+   - Find kontaktoplysninger (telefon, email) hvis muligt
+
+4. POTENTIALEVURDERING
+   - Beregn residualt potentiale: (max_bebpct \u00d7 grundareal) - nuv\u00e6rende bygningsareal
+   - Vurder REALISTISK transformationspotentiale \u2014 v\u00e6r kritisk, ikke optimistisk
+   - Tjek risici-data: fredning (BBR), forurening V1/V2 (DKjord), st\u00f8jzone (Milj\u00f8styrelsen) \u2014 allerede i data
+   - Identificer yderligere showstoppers: servitutter, infrastruktur, fragmenteret ejerskab
+   - Vurder om plangrundlaget faktisk tillader bolig, eller om det kr\u00e6ver ny planlæ\u00e6gning
+
+== OUTPUT ==
+
+VIGTIGT: Lever BEGGE formater:
+
+### 1. RAPPORT (Word-dokument, .docx format)
+Professionelt formateret rapport med:
+- Overbliksside med samlet oversigt (tabel: ejendom, status, anbefaling, residual, ejer)
+- For hver ejendom:
+  - N\u00f8gletal i overskuelig tabel
+  - Fund fra kommunescan med konkrete referencer
+  - Fund fra mediescan med konkrete kilder/datoer
+  - Ejervurdering med \u00f8konomiske nøgletal
+  - Risici og showstoppers
+  - Samlet vurdering: \u{1F7E2} Pitch nu / \u{1F7E1} Afvent / \u{1F534} Afst\u00e5 — med klar begrundelse
+- Prioriteret handlingsplan med konkrete n\u00e6ste skridt og tidshorisont
+
+### 2. PR\u00c6SENTATION (PowerPoint, .pptx format)
+Visuelt tiltalende pr\u00e6sentation med:
+- Forside: \"Transformationsscanner \u2014 ${monthLabel}\" + antal ejendomme + STPL/Gefion
+- Overbliksslide med samlet tabel og fordeling (pitch/afvent/afst\u00e5)
+- \u00c9n slide pr. ejendom med:
+  - N\u00f8gletal (bygning, grund, udnyttelse, ejer, pris, residual)
+  - Vigtigste fund (kort og pr\u00e6cist)
+  - Risici
+  - Anbefaling + n\u00e6ste skridt
+- Opsummeringsslide: Prioriteret handlingsplan
+
+Hold sproget fagligt, kortfattet og handlingsorienteret. Gefion vil vide: Kan vi k\u00f8be? Hvad koster det? Hvorn\u00e5r? Hvad er risikoen?`;
+}
+
+// ---------------------------------------------------------------------------
+// Map view — overview map with stations + properties
+// ---------------------------------------------------------------------------
+let overviewMap = null;
+let mapPropertyMarkers = [];
+let mapStationMarkers = [];
+let currentView = 'table'; // 'table' or 'map'
+
+function scoreColor(s) {
+  if (s >= 60) return '#16a34a';
+  if (s >= 40) return '#d97706';
+  return '#94a3b8';
+}
+
+function showMapView() {
+  currentView = 'map';
+  document.getElementById('btnTable').classList.remove('active');
+  document.getElementById('btnMap').classList.add('active');
+  document.querySelector('.table-wrap').style.display = 'none';
+  document.getElementById('pagination').style.display = 'none';
+  document.getElementById('map-view').style.display = 'block';
+  if (!overviewMap) {
+    initOverviewMap();
+  } else {
+    updateMapMarkers();
+  }
+}
+
+function showTableView() {
+  currentView = 'table';
+  document.getElementById('btnMap').classList.remove('active');
+  document.getElementById('btnTable').classList.add('active');
+  document.querySelector('.table-wrap').style.display = 'block';
+  document.getElementById('pagination').style.display = '';
+  document.getElementById('map-view').style.display = 'none';
+}
+
+function initOverviewMap() {
+  overviewMap = L.map('overviewMap').setView([55.695, 12.55], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap',
+    maxZoom: 18,
+  }).addTo(overviewMap);
+
+  // Stations as blue markers
+  const stationer = DATA.stationer || [];
+  stationer.forEach(st => {
+    const icon = L.divIcon({
+      className: '',
+      html: '<div style="background:#1e3a5f;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);">' + (st.type === 'metro' ? 'M' : 'S') + '</div>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    const m = L.marker([st.lat, st.lon], { icon }).addTo(overviewMap);
+    m.on('click', () => showStationPopup(st, m));
+    mapStationMarkers.push(m);
+  });
+
+  updateMapMarkers();
+}
+
+function updateMapMarkers() {
+  if (!overviewMap) return;
+  // Remove old property markers
+  mapPropertyMarkers.forEach(m => overviewMap.removeLayer(m));
+  mapPropertyMarkers = [];
+
+  // Use filtered data (same as table)
+  const props = filteredData || DATA.ejendomme;
+  props.forEach(e => {
+    if (!e.koordinat_lat || !e.koordinat_lon) return;
+    const sc = e.score_total || 0;
+    const col = scoreColor(sc);
+    const isSel = isSelected(e.bbr_id);
+    const isIgn = isIgnored(e.bbr_id);
+    const isDisk = e.diskvalificeret && e.diskvalificeret.length > 0;
+    if (isIgn && document.getElementById('filterHideIgnored').checked) return;
+    if (isDisk && document.getElementById('filterHideDiskval').checked) return;
+    const radius = sc >= 60 ? 7 : 5;
+    const marker = L.circleMarker([e.koordinat_lat, e.koordinat_lon], {
+      radius: radius,
+      fillColor: col,
+      color: isSel ? '#2563eb' : '#fff',
+      weight: isSel ? 3 : 1.5,
+      fillOpacity: isIgn ? 0.3 : 0.85,
+    }).addTo(overviewMap);
+
+    marker.on('click', () => {
+      marker.bindPopup(
+        '<div style="font-family:var(--font);min-width:200px;">' +
+        '<div style="font-weight:700;font-size:13px;margin-bottom:4px;">' + (e.adresse || '\u2014') + '</div>' +
+        '<div style="font-size:12px;color:#64748b;margin-bottom:6px;">' + (e.kommune || '') + ' \u2014 ' + (e.bbr_anvendelse_tekst || '') + '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:11px;">' +
+          '<div><strong>Score:</strong> <span style="color:' + col + ';font-weight:700;">' + sc + '</span></div>' +
+          '<div><strong>Grund:</strong> ' + fmtNum(e.grundareal_m2) + ' m\u00b2</div>' +
+          '<div><strong>Bygning:</strong> ' + fmtNum(e.bygningsareal_m2) + ' m\u00b2</div>' +
+          '<div><strong>Station:</strong> ' + (e.afstand_station_m != null ? e.afstand_station_m + ' m' : '\u2014') + '</div>' +
+          '<div><strong>Ejer:</strong> ' + ejerDisplay(e) + '</div>' +
+          '<div><strong>Bygge\u00e5r:</strong> ' + (e.byggeaar || '\u2014') + '</div>' +
+        '</div>' +
+        '<div style="margin-top:8px;text-align:center;">' +
+          '<button onclick="showDetail(DATA.ejendomme.find(x=>x.bbr_id===\'' + e.bbr_id + '\'))" style="font-family:var(--font);font-size:12px;padding:4px 16px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Se detaljer</button>' +
+        '</div></div>'
+      ).openPopup();
+    });
+
+    mapPropertyMarkers.push(marker);
+  });
+}
+
+function showStationPopup(station, marker) {
+  // Find properties near this station
+  const nearby = (filteredData || DATA.ejendomme).filter(e => {
+    return e.naermeste_station === station.navn && e.koordinat_lat;
+  }).sort((a, b) => (b.score_total || 0) - (a.score_total || 0));
+
+  const hideIgnored = document.getElementById('filterHideIgnored').checked;
+  const hideDiskval = document.getElementById('filterHideDiskval').checked;
+  const filtered = nearby.filter(e => {
+    if (hideIgnored && isIgnored(e.bbr_id)) return false;
+    if (hideDiskval && e.diskvalificeret && e.diskvalificeret.length > 0) return false;
+    return true;
+  });
+
+  const listHtml = filtered.length > 0
+    ? filtered.slice(0, 30).map(e => {
+        const sc = e.score_total || 0;
+        const col = scoreColor(sc);
+        const bg = sc >= 60 ? '#dcfce7' : sc >= 40 ? '#fef3c7' : '#f1f5f9';
+        return '<div class="prop-item" onclick="showDetail(DATA.ejendomme.find(x=>x.bbr_id===\'' + e.bbr_id + '\'))">' +
+          '<span class="prop-score" style="background:' + bg + ';color:' + col + ';">' + sc + '</span> ' +
+          '<span>' + (e.adresse || '\u2014') + '</span>' +
+          '<span style="color:#94a3b8;margin-left:4px;">(' + (e.afstand_station_m || '?') + 'm)</span>' +
+        '</div>';
+      }).join('') + (filtered.length > 30 ? '<div style="padding:4px;color:#94a3b8;font-size:11px;">+ ' + (filtered.length - 30) + ' mere...</div>' : '')
+    : '<div style="padding:8px;color:#94a3b8;font-size:12px;">Ingen ejendomme med aktive filtre.</div>';
+
+  marker.bindPopup(
+    '<div class="station-popup" style="min-width:280px;max-width:350px;">' +
+    '<h3>' + (station.type === 'metro' ? '\u{24C2} ' : '\u{1F689} ') + station.navn + '</h3>' +
+    '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">' + filtered.length + ' ejendomme' + (filtered.length !== nearby.length ? ' (' + nearby.length + ' total)' : '') + '</div>' +
+    '<div class="prop-list">' + listHtml + '</div>' +
+    '</div>',
+    { maxWidth: 380 }
+  ).openPopup();
+}
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+init();
+initSelections();
+</script>
+</body>
+</html>
